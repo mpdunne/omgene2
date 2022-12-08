@@ -2,7 +2,7 @@ import subprocess
 import tempfile
 import pandas as pd
 
-from typing import List
+from typing import List, Union
 
 exonerate_path = '~/software/exonerate-2.2.0-x86_64/bin/exonerate'
 
@@ -86,20 +86,24 @@ class Exonerate:
 
         return all_gffs
 
-    def run(self, aa_sequence: str, genome_sequence: str) -> List[pd.DataFrame]:
+    def run(self, aa_sequences: Union[List[str], str], genome_sequence: str) -> List[pd.DataFrame]:
         """
         Do a basic run of exonerate and process the output.
 
-        :param aa_sequence: The AA sequence to use.
+        :param aa_sequences: The AA sequences (or single sequence) use.
         :param genome_sequence: The DNA sequence to search.
         :return: A list of GFFs in list-of-lists format.
         """
+        if type(aa_sequences) is str:
+            aa_sequences = [aa_sequences]
+
         with tempfile.TemporaryDirectory() as td:
             aa_fasta_file = f'{td}/aa.fa'
             genome_fasta_file = f'{td}/genome.fa'
 
             with open(aa_fasta_file, 'w') as f:
-                f.write(f'>seq\n{aa_sequence}\n')
+                for i, seq in enumerate(aa_sequences):
+                    f.write(f'>seq_{i}\n{seq}\n')
 
             with open(genome_fasta_file, 'w') as f:
                 f.write(f'>genome\n{genome_sequence}\n')

@@ -75,18 +75,16 @@ class OMGene:
             print(f'Searching against {target_tid}')
 
             target_genome_seq = target_data.meta_chr_seq
+            query_seqs = [query_data.seq.translate() for query_data in query_genes.values()]
 
-            for query_tid, query_data in query_genes.items():
-                query_aa_seq = query_data.seq.translate()
+            results = e.run(query_seqs, target_genome_seq)
+            for result in results:
+                new_target_data = deepcopy(target_data)
+                result_cds = result[result['type'] == 'cds']
 
-                results = e.run(query_aa_seq, target_genome_seq)
-                for result in results:
-                    new_target_data = deepcopy(target_data)
-                    result_cds = result[result['type'] == 'cds']
-
-                    new_target_data.meta_exons = [[int(row['start']) - 1, int(row['end'])] for _, row in
-                                                  result_cds.iterrows()]
-                    options[target_tid].append(new_target_data)
+                new_target_data.meta_exons = [[int(row['start']) - 1, int(row['end'])] for _, row in
+                                              result_cds.iterrows()]
+                options[target_tid].append(new_target_data)
 
         return options
 
