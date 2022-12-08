@@ -42,10 +42,11 @@ class OMGene:
         else:
             self.target_genes.update(genes)
 
-    def run(self) -> Dict[str, GeneContext]:
+    def run(self, return_scores: bool = False) -> Dict[str, GeneContext]:
         """
         Run the optimisation.
 
+        :param return_scores: Whether or not to return the old and new MSA scores.
         :return: Optimised genes, keyed by transcript ID.
         """
         print('Running search...')
@@ -53,8 +54,7 @@ class OMGene:
         valid_genes = {k: [o for o in opts if o.seq[0:3] == 'ATG'] for k, opts in options.items()}
 
         print('Choosing best sequences...')
-        result, original_score, new_score = self._choose_best(valid_genes)
-        # print(original_score, new_score)
+        result = self._choose_best(valid_genes, return_scores)
         return result
 
     def _exonerate_all_v_all(self) -> Dict[str, List[GeneContext]]:
