@@ -4,8 +4,6 @@ import pandas as pd
 
 from typing import List, Union
 
-exonerate_path = '~/software/exonerate-2.2.0-x86_64/bin/exonerate'
-
 
 class Exonerate:
     """
@@ -86,16 +84,20 @@ class Exonerate:
 
         return all_gffs
 
-    def run(self, aa_sequences: Union[List[str], str], genome_sequence: str) -> List[pd.DataFrame]:
+    def run(self, aa_sequences: Union[List[str], str], genome_sequences: Union[List[str], str]) -> List[pd.DataFrame]:
         """
         Do a basic run of exonerate and process the output.
 
         :param aa_sequences: The AA sequences (or single sequence) use.
-        :param genome_sequence: The DNA sequence to search.
+        :param genome_sequences: The DNA sequence to search.
         :return: A list of GFFs in list-of-lists format.
         """
-        if type(aa_sequences) is str:
+        if type(aa_sequences) not in [list, tuple, set]:
             aa_sequences = [aa_sequences]
+
+        single_genome_input = type(genome_sequences) not in [list, tuple, set]
+        if single_genome_input:
+            genome_sequences = [genome_sequences]
 
         with tempfile.TemporaryDirectory() as td:
             aa_fasta_file = f'{td}/aa.fa'
@@ -105,10 +107,24 @@ class Exonerate:
                 for i, seq in enumerate(aa_sequences):
                     f.write(f'>seq_{i}\n{seq}\n')
 
+            genome_ids = []
             with open(genome_fasta_file, 'w') as f:
-                f.write(f'>genome\n{genome_sequence}\n')
+                for i, genome_sequence in enumerate(genome_sequences):
+                    genome_id = f'g_{i}'
+                    genome_ids.append(genome_id)
+                    f.write(f'>{genome_id}\n{genome_sequence}\n')
 
             output = self._run_exonerate(aa_fasta_file, genome_fasta_file)
             gffs = self._process_output(output)
 
-            return gffs
+            gffs_by_gid = {}
+            for df in gffs:
+                gid = df['chr'][0]
+                gffs_by_gid[gid] = gffs_by_gid.get(gid, []) + [df]
+
+            results = [gffs_by_gid.get(gid, []) for gid in genome_ids]
+
+            if single_genome_input:
+                return results[0]
+            else:
+                return results
