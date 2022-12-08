@@ -140,6 +140,11 @@ class OMGene:
             else:
                 result[s_orig] = options_named[s_orig][s_new]
 
+        if best_score > original_score:
+            print(f'Improved MSA score from {original_score:4f} to {best_score:4f}.')
+        else:
+            print('No improvement.')
+
         if return_scores:
             return result, original_score, best_score
         else:
