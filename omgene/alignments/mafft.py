@@ -28,7 +28,7 @@ class Mafft:
         :param args: The command line args to pass to MAFFT.
         :return: The result from running MAFFT.
         """
-        p = subprocess.Popen(f'{self.mafft_path} --localpair --maxiterate 1000 {args}',
+        p = subprocess.Popen(f'{self.mafft_path} --localpair --thread -1 --maxiterate 1000 {args}',
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE,
                              shell=True)
