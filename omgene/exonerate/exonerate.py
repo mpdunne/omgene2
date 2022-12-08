@@ -1,5 +1,6 @@
 import subprocess
 import tempfile
+import pandas as pd
 
 from typing import List
 
@@ -55,7 +56,7 @@ class Exonerate:
         out, err = p.communicate()
         return out.decode()
 
-    def _process_output(self, output: str) -> List[List[List[str]]]:
+    def _process_output(self, output: str) -> List[pd.DataFrame]:
         """
         Process the exonerate output straight from the command line.
 
@@ -71,7 +72,11 @@ class Exonerate:
                 store_lines = True
             elif line == '# --- END OF GFF DUMP ---':
                 store_lines = False
-                all_gffs.append(current_gff)
+
+                current_gff_df = pd.DataFrame(current_gff)
+                current_gff_df.columns = ['chr', 'source', 'type', 'start', 'end', '.', 'strand', 'frame', 'desc']
+
+                all_gffs.append(current_gff_df)
                 current_gff = []
 
             if not store_lines or line[0] == '#':
@@ -81,7 +86,7 @@ class Exonerate:
 
         return all_gffs
 
-    def run(self, aa_sequence: str, genome_sequence: str) -> List[List[List[str]]]:
+    def run(self, aa_sequence: str, genome_sequence: str) -> List[pd.DataFrame]:
         """
         Do a basic run of exonerate and process the output.
 
