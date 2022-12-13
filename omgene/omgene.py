@@ -88,57 +88,79 @@ class OMGene:
 
         return options
 
-    def _choose_best(self, options: Dict[str, List[GeneContext]], return_scores=True):
+    def _choose_best(self, candidates: Dict[str, List[GeneContext]], return_scores=True):
         """
         Choose the best ones.
 
-        :param options: The options for each gene, keyed by transcript ID.
+        :param candidates: The options for each gene, keyed by transcript ID.
         :param return_scores: Whether to return the scores.
         :return: The best option for each transcript ID.
         """
-        options_named = {s: {f'{s}.alt-{i}': o for i, o in enumerate(os)} for s, os in options.items()}
 
-        query_genes = {**self.reference_genes, **self.target_genes}
-        seqs_orig = [SeqRecord(Seq(o.seq.translate()), id=s) for s, o in query_genes.items()]
-        seqs_opts = [SeqRecord(Seq(o.seq.translate()), id=s) for _, os in options_named.items() for s, o in os.items()]
+        # Organise the new candidates and the original sequences.
+        all_gcs = {}
+        original_tids = {}
 
+        for gid, original_gc in {**self.reference_genes, **self.target_genes}.items():
+            all_gcs[gid] = {gid: original_gc}
+            original_tids[gid] = gid
+
+        for gid, candidate_gcs in candidates.items():
+            candidate_gcs_by_tid = {f'{gid}.alt-{i}': gc for i, gc in enumerate(candidate_gcs)}
+            all_gcs[gid].update(candidate_gcs_by_tid)
+
+        # Now we want to align the originals and then align all the new sequences to them.
+        # First get all original seqs and all options in list format.
+        seq_list_orig = []
+        seq_list_candidates = []
+
+        for gid, original_tid in original_tids.items():
+
+            # Original sequence
+            orig_gc = all_gcs[gid][original_tid]
+            seq_list_orig.append(SeqRecord(Seq(orig_gc.seq.translate()), id=gid))
+
+            # The candidates are then anything that's not the original
+            for tid, candidate_gc in all_gcs[gid].items():
+                if tid != original_tid:
+                    seq_list_candidates.append(SeqRecord(Seq(all_gcs[gid][tid].seq.translate()), id=tid))
+
+        # Run alignments on the original sequences as well as all the options....
         mafft = Mafft()
 
         print('Aligning original sequences...')
-        aln = [*mafft.align(seqs_orig)]
+        aln_orig = [*mafft.align(seq_list_orig)]
 
         print('Aligning new candidates...')
-        aln_new = [*mafft.add(aln, seqs_opts)]
+        aln_new = [*mafft.add(aln_orig, seq_list_candidates)]
         aln_new_seqs = {s.id: str(s.seq) for s in aln_new}
 
         print('Scoring and choosing...')
         m = MSAScorer()
-        current = {s: s for s in query_genes.keys()}
-        potentials = {s: [f'{s}.alt-{i}' for i, o in enumerate(os)] for s, os in options.items()}
-        current_score = original_score = m.alignment_score([aln_new_seqs[k] for k in current.values()])
 
-        best = current
-        best_score = current_score
-        again = True
+        best_tids = current_tids = original_tids.copy()
+        best_score = current_score = original_score = m.alignment_score([aln_new_seqs[k] for k in best_tids.values()])
 
-        while again:
-            again = False
-            current = best.copy()
-            for tid, new_tids in potentials.items():
-                for new_tid in new_tids:
-                    current[tid] = new_tid
-                    current_score = m.alignment_score([aln_new_seqs[k] for k in current.values()])
+        # Now iteratively go through and try the options
+        repeat = True
+        while repeat:
+            repeat = False
+            for gid, alternatives in all_gcs.items():
+                for new_tid in alternatives:
+                    if new_tid == current_tids[gid]:
+                        continue
+
+                    current_tids = best_tids.copy()
+                    current_tids[gid] = new_tid
+                    current_seqs = [aln_new_seqs[k] for k in current_tids.values()]
+                    current_score = m.alignment_score(current_seqs)
+
                     if current_score > best_score:
-                        again = True
-                        best = current.copy()
+                        repeat = True
+                        best_tids = current_tids.copy()
                         best_score = current_score
 
-        result = {}
-        for s_orig, s_new in best.items():
-            if s_orig == s_new:
-                result[s_orig] = query_genes[s_orig]
-            else:
-                result[s_orig] = options_named[s_orig][s_new]
+        result = {gid: all_gcs[gid][best_tid] for gid, best_tid in best_tids.items()}
 
         if best_score > original_score:
             print(f'Improved MSA score from {original_score:4f} to {best_score:4f}.')
