@@ -2,6 +2,7 @@ from omgene.alignments.mafft import Mafft
 from omgene.alignments.score import MSAScorer
 from omgene.exonerate.exonerate import Exonerate
 from omgene.utils.gff import GeneContext
+from omgene.utils.features import find_start, find_stop
 
 from copy import deepcopy
 from typing import Dict
@@ -51,10 +52,15 @@ class OMGene:
         """
         print('Running search...')
         options = self._exonerate_all_v_all()
-        valid_genes = {k: [o for o in opts if o.seq[0:3] == 'ATG'] for k, opts in options.items()}
+
+        print('Adjusting gene models')
+        options = {k: [find_stop(o) for o in opts] for k, opts in options.items()}
+        options = {k: [o for o in opts if o is not None] for k, opts in options.items()}
+        options = {k: [find_start(o) for o in opts] for k, opts in options.items()}
+        options = {k: [o for o in opts if o is not None] for k, opts in options.items()}
 
         print('Choosing best sequences...')
-        result = self._choose_best(valid_genes, return_scores)
+        result = self._choose_best(options, return_scores)
         return result
 
     def _exonerate_all_v_all(self) -> Dict[str, List[GeneContext]]:
