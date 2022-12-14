@@ -53,14 +53,27 @@ class OMGene:
         print('Running search...')
         options = self._exonerate_all_v_all()
 
-        print('Adjusting gene models')
+        print('Adjusting stop codons')
         options = {k: [find_stop(o) for o in opts] for k, opts in options.items()}
         options = {k: [o for o in opts if o is not None] for k, opts in options.items()}
-        options = {k: [find_start(o) for o in opts] for k, opts in options.items()}
-        options = {k: [o for o in opts if o is not None] for k, opts in options.items()}
+
+        print('Adding start codons')
+        valid_genes = {k: [] for k in options.keys()}
+        for k, opts in options.items():
+            for opt in opts:
+                if opt.seq[:3] == 'ATG':
+                    valid_genes[k].append(opt)
+                else:
+                    left_option = find_start(opt, direction='left')
+                    if left_option is not None:
+                        valid_genes[k].append(left_option)
+
+                    right_option = find_start(opt, direction='right')
+                    if right_option is not None:
+                        valid_genes[k].append(right_option)
 
         print('Choosing best sequences...')
-        result = self._choose_best(options, return_scores)
+        result = self._choose_best(valid_genes, return_scores)
         return result
 
     def _exonerate_all_v_all(self) -> Dict[str, List[GeneContext]]:
