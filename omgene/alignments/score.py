@@ -2,10 +2,11 @@ import itertools
 import numpy as np
 import re
 
+from Bio.Seq import Seq
 from Bio.Align import substitution_matrices
 from collections import Counter
 from scipy.special import binom
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 
 class MSAScorer:
@@ -47,7 +48,7 @@ class MSAScorer:
         blos_dict[('-', '-')] = double_gap
         return blos_dict
 
-    def _make_blosum_matrix(self, blosdict: Dict[Tuple[str], int]) -> np.ndarray:
+    def _make_blosum_matrix(self, blosdict: Dict[Tuple[str], float]) -> np.ndarray:
         """
         Convert a blosum dict into a blosum matrix.
 
@@ -86,27 +87,39 @@ class MSAScorer:
         score = np.sum(scoresmatrix) / binom(column_length, 2)
         return score
 
-    def alignment_score(self, sequences: List[List[str]], omit_empty: bool = False, scaled: bool = False) -> float:
+    def column_scores(self, sequences: List[str]) -> List[float]:
         """
-        Return an score for the alignment, calculated by summing column scores
+        Return a list of column scores, one for each column.
+
+        :param sequences: (List of SeqRecords) An iterable of SeqRecord items
+        """
+        columns = [*zip(*sequences)]
+        scores = [self.col_score(c) for c in columns]
+        return scores
+
+    def alignment_score(self,
+                        sequences: List[Union[str, Seq]],
+                        omit_empty: bool = False,
+                        scaled: bool = False) -> float:
+        """
+        Return a score for the alignment, calculated by summing column scores
         based on the Blosum matrix.
 
         :param sequences: (List of SeqRecords) An iterable of SeqRecord items
         :param omit_empty: (bool) Ignore any empty sequences
         :param scaled: (bool) Whether to scale the alignment score by alignment length.
         """
+        if len(sequences) == 0:
+            return 0.0
+
+        if len(set([len(s) for s in sequences])) != 1:
+            raise ValueError('All aligned sequences must have the same length.')
+
         if omit_empty:
-            sequences = [s for s in sequences if not re.match(r'^-+$', s)]
+            sequences = [s for s in sequences if not re.match(r'^-+$', str(s))]
 
-        if not sequences:
-            return 0
-
+        scores = self.column_scores(sequences)
+        score = sum(scores)
         seq_len = len(sequences[0])
-        if not seq_len:
-            return 0
-
-        columns = {i: [s[i] for s in sequences] for i in range(0, seq_len)}
-        scores = {i: self.col_score(columns[i]) for i in columns}
-        score = sum(scores.values())
 
         return score if not scaled else score / (1.0 * seq_len)
