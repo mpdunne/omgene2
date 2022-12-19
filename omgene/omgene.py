@@ -1,6 +1,11 @@
+import re
+import numpy as np
+
 from omgene.alignments.mafft import Mafft
 from omgene.alignments.score import MSAScorer
+from omgene.alignments.match import get_nonmatching_regions
 from omgene.exonerate.exonerate import Exonerate
+from omgene.utils.maps import *
 from omgene.utils.gff import GeneContext
 from omgene.utils.features import find_start, find_stop
 
@@ -110,7 +115,6 @@ class OMGene:
 
         return options
 
-
     def _prepare_candiates(self, candidates: Dict[str, List[GeneContext]]) -> \
         Tuple[Dict[str, str], Dict[str, Dict[str, GeneContext]], Dict[str, Seq]]:
         """
@@ -182,36 +186,90 @@ class OMGene:
         print('Scoring and choosing...')
         m = MSAScorer()
 
-        best_tids = current_tids = original_tids.copy()
-        best_score = current_score = original_score = m.alignment_score([all_aligned_seqs[k] for k in best_tids.values()])
+        # Our starting point
+        current_msa = {gid: all_aligned_seqs[tid] for gid, tid in original_tids.items()}
+        current_gcs = {gid: all_gcs[gid][tid] for gid, tid in original_tids.items()}
+        original_score = m.alignment_score([*current_msa.values()])
 
-        # Now iteratively go through and try the options
+        # Now go through each sequence and greedily look for improvements.
         repeat = True
         while repeat:
             repeat = False
             for gid, alternatives in all_gcs.items():
-                for new_tid in alternatives:
-                    if new_tid == current_tids[gid]:
+                for tid_alt, gc_alt in alternatives.items():
+                    if current_gcs[gid].seq.translate() == gc_alt.seq.translate():
                         continue
 
-                    current_tids = best_tids.copy()
-                    current_tids[gid] = new_tid
-                    current_seqs = [all_aligned_seqs[k] for k in current_tids.values()]
-                    current_score = m.alignment_score(current_seqs)
+                    # Unpack the aligned sequences for original and alt.
+                    aligned_seq_current = current_msa[gid]
+                    aligned_seq_alt = all_aligned_seqs[tid_alt]
 
-                    if current_score > best_score:
-                        repeat = True
-                        best_tids = current_tids.copy()
-                        best_score = current_score
+                    nonmatching_regions = get_nonmatching_regions(aligned_seq_current, str(aligned_seq_alt))
+                    if not nonmatching_regions:
+                        continue
 
-        result = {gid: all_gcs[gid][best_tid] for gid, best_tid in best_tids.items()}
+                    # Get score differentials for nonmatching regions.
+                    nonmatching_region_score_differentials = []
 
-        if best_score > original_score:
-            print(f'Improved MSA score from {original_score:4f} to {best_score:4f}.')
+                    alt_msa = {**current_msa, **{gid: aligned_seq_alt}}
+                    current_msa_array = np.array([list(seq) for seq in current_msa.values()])
+                    alt_msa_array = np.array([list(seq) for seq in alt_msa.values()])
+
+                    for (l, r) in nonmatching_regions:
+                        score_current = np.sum(m.column_scores(current_msa_array[:, l: r]))
+                        score_alt = np.sum(m.column_scores(alt_msa_array[:, l: r]))
+                        nonmatching_region_score_differentials.append(score_alt - score_current)
+
+                    best_ix = np.argmax(nonmatching_region_score_differentials)
+                    best_region_candidate = None
+
+                    if nonmatching_region_score_differentials[best_ix] > 0:
+                        best_region_candidate = nonmatching_regions[best_ix]
+
+                    if best_region_candidate is None:
+                        continue
+
+                    # Get GCs and exon maps.
+                    gc_orig = current_gcs[gid]
+                    gc_alt = all_gcs[gid][tid_alt]
+
+                    map_orig = get_exon_map(gc_orig)
+                    map_alt = get_exon_map(gc_alt)
+
+                    # Get AA maps
+                    aa_map_orig = exon_map_to_aa_map(map_orig)
+                    aa_map_alt = exon_map_to_aa_map(map_alt)
+
+                    gene_map_region_alt = aligned_seq_region_to_exon_map_region(aligned_seq_alt, best_region_candidate,
+                                                                                aa_map_alt)
+
+                    # Attempt a transplant
+                    try:
+                        exon_map_transplanted = exon_map_transplant(map_orig, map_alt, gene_map_region_alt)
+                    except TransplantError:
+                        continue
+
+                    # Get the exons back
+                    exons_transplanted = exons_from_exon_map(exon_map_transplanted)
+                    gc_transplanted = deepcopy(gc_orig)
+                    gc_transplanted.meta_exons = exons_transplanted
+
+                    # Update current
+                    current_gcs[gid] = gc_transplanted
+                    l, r = best_region_candidate
+                    current_aligned_seq = aligned_seq_current[:l] + aligned_seq_alt[l:r] + aligned_seq_current[r:]
+                    current_msa[gid] = current_aligned_seq
+
+                    # If we've got here, do it all again.
+                    repeat = True
+
+        current_score = m.alignment_score([*current_msa.values()])
+        if current_score > original_score:
+            print(f'Improved MSA score from {original_score:4f} to {current_score:4f}.')
         else:
             print('No improvement.')
 
         if return_scores:
-            return result, original_score, best_score
+            return current_gcs, original_score, current_score
         else:
-            return result
+            return current_gcs
