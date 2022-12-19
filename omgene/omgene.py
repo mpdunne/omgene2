@@ -9,7 +9,7 @@ from typing import Dict
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from typing import List
+from typing import List, Tuple
 
 
 class OMGene:
@@ -72,8 +72,11 @@ class OMGene:
                     if right_option is not None:
                         valid_genes[k].append(right_option)
 
+        print('Preparing sequences for optimisation...')
+        original_tids, all_gcs, all_aligned_seqs = self._prepare_candiates(valid_genes)
+
         print('Choosing best sequences...')
-        result = self._choose_best(valid_genes, return_scores)
+        result = self._optimise_gene_models(original_tids, all_gcs, all_aligned_seqs, return_scores=return_scores)
         return result
 
     def _exonerate_all_v_all(self) -> Dict[str, List[GeneContext]]:
@@ -107,15 +110,20 @@ class OMGene:
 
         return options
 
-    def _choose_best(self, candidates: Dict[str, List[GeneContext]], return_scores=True):
-        """
-        Choose the best ones.
 
-        :param candidates: The options for each gene, keyed by transcript ID.
-        :param return_scores: Whether to return the scores.
-        :return: The best option for each transcript ID.
+    def _prepare_candiates(self, candidates: Dict[str, List[GeneContext]]) -> \
+        Tuple[Dict[str, str], Dict[str, Dict[str, GeneContext]], Dict[str, Seq]]:
         """
+        Organise and align the candidates in order for them to be processed.
 
+        Returns:
+            - A dict specifying the original transcript id for each gene id.
+            - A dict, keyed by transcript ID, containing the GeneContext for each candidate transcript
+            - A dict, keyed by gene ID then transcript ID, containing the aligned sequence of each candidate transcript.
+
+        :param candidates: The candidates as returned by the cross-species search.
+        :return: A tuple of (original_tids, gene_contexts, aligned_seqs)
+        """
         # Organise the new candidates and the original sequences.
         all_gcs = {}
         original_tids = {}
@@ -154,11 +162,28 @@ class OMGene:
         aln_new = [*mafft.add(aln_orig, seq_list_candidates)]
         aln_new_seqs = {s.id: str(s.seq) for s in aln_new}
 
+        return original_tids, all_gcs, aln_new_seqs
+
+    def _optimise_gene_models(self,
+                              original_tids: Dict[str, str],
+                              all_gcs: Dict[str, Dict[str, GeneContext]],
+                              all_aligned_seqs: Dict[str, Seq],
+                              return_scores=True):
+        """
+        Choose the best ones.
+
+        :param original_tids: A dict matching each gene ID to its original transcipt ID.
+        :param all_gcs: The GeneContexts for all the candidates.
+        :param all_aligned_seqs: A dict of dicts containing all the aligned candidate sequences.
+        :param return_scores: Whether to return the scores.
+        :return: The best option for each transcript ID.
+        """
+
         print('Scoring and choosing...')
         m = MSAScorer()
 
         best_tids = current_tids = original_tids.copy()
-        best_score = current_score = original_score = m.alignment_score([aln_new_seqs[k] for k in best_tids.values()])
+        best_score = current_score = original_score = m.alignment_score([all_aligned_seqs[k] for k in best_tids.values()])
 
         # Now iteratively go through and try the options
         repeat = True
@@ -171,7 +196,7 @@ class OMGene:
 
                     current_tids = best_tids.copy()
                     current_tids[gid] = new_tid
-                    current_seqs = [aln_new_seqs[k] for k in current_tids.values()]
+                    current_seqs = [all_aligned_seqs[k] for k in current_tids.values()]
                     current_score = m.alignment_score(current_seqs)
 
                     if current_score > best_score:
