@@ -78,7 +78,7 @@ class OMGene:
                         valid_genes[k].append(right_option)
 
         print('Preparing sequences for optimisation...')
-        original_tids, all_gcs, all_aligned_seqs = self._prepare_candiates(valid_genes)
+        original_tids, all_gcs, all_aligned_seqs = self._prepare_candidates(valid_genes)
 
         print('Choosing best sequences...')
         result = self._optimise_gene_models(original_tids, all_gcs, all_aligned_seqs, return_scores=return_scores)
@@ -115,7 +115,7 @@ class OMGene:
 
         return options
 
-    def _prepare_candiates(self, candidates: Dict[str, List[GeneContext]]) -> \
+    def _prepare_candidates(self, candidates: Dict[str, List[GeneContext]]) -> \
         Tuple[Dict[str, str], Dict[str, Dict[str, GeneContext]], Dict[str, Seq]]:
         """
         Organise and align the candidates in order for them to be processed.
