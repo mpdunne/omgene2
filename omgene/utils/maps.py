@@ -117,7 +117,10 @@ def exon_map_transplant(patient: str, donor: str, region: List[int]) -> str:
     patient_l = patient[:s]
     patient_region = patient[s:e + 1]
     patient_r = patient[e + 1:]
+
+    donor_l = donor[:s]
     donor_region = donor[s:e + 1]
+    donor_r = donor[e + 1:]
 
     patient_exon_content = len([x for x in patient_region if x == 'X'])
     donor_exon_content = len([x for x in donor_region if x == 'X'])
@@ -125,10 +128,10 @@ def exon_map_transplant(patient: str, donor: str, region: List[int]) -> str:
     if (donor_exon_content - patient_exon_content) % 3 != 0:
         raise TransplantError('Cannot transplant gene model part - incompatible frames.')
 
-    bad_transplant_start = (s != 0) and {patient_l[-1], patient_region[0]} == {'-', '.'}
-    bad_transplant_end = (s != len(patient)) and {patient_l[-1], patient_region[0]} == {'-', '.'}
+    bad_transplant_start = (s != 0) and {patient_l[-1], donor_l[-1], donor_region[0]} == {'X', '.'}
+    bad_transplant_end = (s != len(patient)) and {patient_r[0], donor_r[0], donor_region[-1]} == {'X', '.'}
 
     if bad_transplant_start or bad_transplant_end:
-        raise TransplantError('Transplant would introduce an unseen splice site.')
+        raise TransplantError('Transplant would introduce an unseen splice site or invalid start codon.')
 
     return patient_l + donor_region + patient_r
