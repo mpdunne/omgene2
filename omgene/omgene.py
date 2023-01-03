@@ -204,7 +204,9 @@ class OMGene:
                     aligned_seq_current = current_msa[gid]
                     aligned_seq_alt = all_aligned_seqs[tid_alt]
 
-                    nonmatching_regions = get_nonmatching_regions(aligned_seq_current, str(aligned_seq_alt))
+                    flank_size = 5
+                    nonmatching_regions = get_nonmatching_regions(aligned_seq_current,
+                                                                  str(aligned_seq_alt), flank_size=flank_size)
                     if not nonmatching_regions:
                         continue
 
@@ -228,6 +230,10 @@ class OMGene:
 
                     if best_region_candidate is None:
                         continue
+
+                    # Add the flank.
+                    best_region_candidate = (max(0, best_region_candidate[0] - flank_size),
+                                             min(len(aligned_seq_current), best_region_candidate[1] + flank_size))
 
                     # Get GCs and exon maps.
                     gc_orig = current_gcs[gid]
