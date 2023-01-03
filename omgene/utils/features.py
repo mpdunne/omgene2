@@ -95,5 +95,5 @@ def find_start(gene_context: GeneContext, exon_ix: int = 0, start_codons: Sequen
             else:
                 first_exon[0] += 3
 
-            if first_exon[0] < 0:
+            if first_exon[0] < 0 or first_exon[0] > first_exon[1]:
                 return
