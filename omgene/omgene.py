@@ -116,7 +116,7 @@ class OMGene:
         return options
 
     def _prepare_candidates(self, candidates: Dict[str, List[GeneContext]]) -> \
-        Tuple[Dict[str, str], Dict[str, Dict[str, GeneContext]], Dict[str, Seq]]:
+            Tuple[Dict[str, str], Dict[str, Dict[str, GeneContext]], Dict[str, Seq]]:
         """
         Organise and align the candidates in order for them to be processed.
 
@@ -190,6 +190,17 @@ class OMGene:
         current_msa = {gid: all_aligned_seqs[tid] for gid, tid in original_tids.items()}
         current_gcs = {gid: all_gcs[gid][tid] for gid, tid in original_tids.items()}
         original_score = m.alignment_score([*current_msa.values()])
+
+        # Make a note of the gene models that we've already seen.
+        # This is a hack to patch an infinite loop due to problems with some transplants (e.g. A0A4D8YYW9).
+        # It should be addressed better and this code removed.
+        seen_genes = []
+
+        def exon_summary(exons):
+            return '+'.join([f'{e[0]}-{e[1]}' for e in exons])
+
+        gene_set = tuple([(gid, exon_summary(gc.meta_exons)) for gid, gc in current_gcs.items()])
+        seen_genes.append(gene_set)
 
         # Now go through each sequence and greedily look for improvements.
         repeat = True
@@ -267,7 +278,11 @@ class OMGene:
                     current_msa[gid] = current_aligned_seq
 
                     # If we've got here, do it all again.
-                    repeat = True
+                    gene_set = tuple([(gid, exon_summary(gc.meta_exons)) for gid, gc in current_gcs.items()])
+
+                    if gene_set not in seen_genes:
+                        seen_genes.append(gene_set)
+                        repeat = True
 
         current_score = m.alignment_score([*current_msa.values()])
         if current_score > original_score:
