@@ -41,7 +41,7 @@ def find_stop(gene_context: GeneContext, exon_ix: int = -1,
             return gc
         else:
             last_exon[-1] += 3
-            if last_exon[-1] >= len(gc.meta_chr_seq):
+            if last_exon[-1] > len(gc.meta_chr_seq):
                 return
 
 

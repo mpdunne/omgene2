@@ -109,14 +109,14 @@ class MSAScorer:
         :param omit_empty: (bool) Ignore any empty sequences
         :param scaled: (bool) Whether to scale the alignment score by alignment length.
         """
-        if len(sequences) == 0:
+        if omit_empty:
+            sequences = [s for s in sequences if not re.match(r'^-+$', str(s))]
+
+        if len(sequences) < 2:
             return 0.0
 
         if len(set([len(s) for s in sequences])) != 1:
             raise ValueError('All aligned sequences must have the same length.')
-
-        if omit_empty:
-            sequences = [s for s in sequences if not re.match(r'^-+$', str(s))]
 
         scores = self.column_scores(sequences)
         score = sum(scores)

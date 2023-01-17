@@ -101,7 +101,7 @@ class GeneContext:
             meta_chr_seq = self._chr_seq
         else:
             chr_len = len(self._chr_seq)
-            meta_chr_seq = Seq(self._chr_seq).reverse_complement()
+            meta_chr_seq = str(Seq(self._chr_seq).reverse_complement())
             meta_exons = [[chr_len - e + chr_offset, chr_len - b + chr_offset] for b, e, s in exons][::-1]
 
         self.meta_exons = meta_exons
