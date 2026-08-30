@@ -5,7 +5,8 @@ on:
   pull_request:
 
 jobs:
-  OMGene2 PyTest:
+  OMGene2-PyTest:
+    name: OMGene2 PyTest
 
     runs-on: ubuntu-latest
 
