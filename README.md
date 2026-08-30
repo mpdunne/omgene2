@@ -1,1 +1,1 @@
-# omgene-mini
+# OMGene 2

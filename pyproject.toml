@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omgene"
+version = "2.0.0.dev0"
+description = "Improving gene models through orthology guided optimisation"
+readme = "README.md"
+requires-python = ">=3.7"
+license = "GPL-3.0-or-later"
+authors = [
+    { name = "Michael P. Dunne" }
+]
+keywords = [
+    "omgene",
+    "bioinformatics",
+    "genomics",
+    "genome annotation",
+    "gene annotation",
+    "gene models",
+    "orthology",
+    "orthogroup",
+    "orthogroups",
+    "comparative genomics",
+]
+dynamic = ["dependencies"]
+
+classifiers = [
+    "Programming Language :: Python :: 3.7",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+
+[project.urls]
+Repository = "https://github.com/mpdunne/omgene2"
+Issues = "https://github.com/mpdunne/omgene2/issues"
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+include = ["omgene", "omgene.*"]
